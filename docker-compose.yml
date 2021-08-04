@@ -1,0 +1,93 @@
+version: '3.9'
+services:
+# ------------------------------------------
+# --------- Redis and S3 services ! --------
+# ------------------------------------------
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - 6379:6379
+  minio:
+    image: minio/minio
+    ports:
+      - 9000:9000
+    environment:
+      MINIO_ACCESS_KEY: RANDOM_ACCESS_KEY_S3_TO_CHANGE_D2IUNWI1238921NW213
+      MINIO_SECRET_KEY: RANDOM_SECRET_KEY_S3_TO_CHANGE_1918CB2I2XN321K3JHS
+    entrypoint: sh
+    command: >
+      -c 'mkdir -p /export/hermes_s3_bucket/configs/config_id=1 && echo "{ \"blacklist\": [], \"config_name\": \"hello_world\", \"data_transformations\": [], \"do_not_modify_connection_header\": false, \"headers\": null, \"headers_freeze\": [],    \"http2\": \"NO\", \"proxy\": null, \"site_blacklist_response\": \"\", \"ssl\": { \"ciphers\": null, \"verify_ssl\": false, \"version\": \"PROTOCOL_TLS\" }, \"waterfall_requests\": []}" >> /export/hermes_s3_bucket/configs/config_id=1/conf.json && cat /export/hermes_s3_bucket/configs/config_id=1/conf.json && /usr/bin/minio server /export'
+# ------------------------------------------
+# --------- MITM Service ! -----------------
+# ------------------------------------------
+  proxy:
+    image: proxy
+    build:
+        context: .
+        target: hermes-backend-mitm
+    links:
+      - "minio:minio"
+      - "redis:redis"
+    environment:
+      REDIS_URL: redis
+      REDIS_PORT: 6379
+      S3_API_KEY_ID: RANDOM_ACCESS_KEY_S3_TO_CHANGE_D2IUNWI1238921NW213
+      S3_API_ACCESS_KEY: RANDOM_SECRET_KEY_S3_TO_CHANGE_1918CB2I2XN321K3JHS
+      S3_URL_ENDPOINT: http://minio:9000
+      S3_BUCKET: hermes_s3_bucket
+      PROXY_USERNAME: proxy_username
+      PROXY_PASSWORD: PVnkJazW2weJ6EcyZKgoZ7cNbckXVeGje4P
+    ports:
+      - 8080:8080
+    depends_on:
+      - redis
+      - minio
+# ------------------------------------------
+# --------- API Service ! -----------------
+# ------------------------------------------
+  api:
+    image: api
+    build:
+        context: .
+        target: hermes-backend-api
+    links:
+      - "minio:minio"
+      - "redis:redis"
+      - "proxy:proxy"
+    environment:
+      REDIS_URL: redis
+      REDIS_PORT: 6379
+      S3_API_KEY_ID: RANDOM_ACCESS_KEY_S3_TO_CHANGE_D2IUNWI1238921NW213
+      S3_API_ACCESS_KEY: RANDOM_SECRET_KEY_S3_TO_CHANGE_1918CB2I2XN321K3JHS
+      S3_URL_ENDPOINT: http://minio:9000
+      S3_BUCKET: hermes_s3_bucket
+      MITM_TEST_URL: proxy
+      MITM_TEST_PORT: 8080
+      SECRET_KEY_APP: YvPpvrwaFMtrowYeUyc272LybhMfukW6Bn86ygQYzACGCCbiAqxvtA9KFf7tMRaREz2ACu
+      API_USERNAME: api_username
+      API_PASSWORD: 2C8fdpZwGAYtKwsfDVFLoqtGst2UFbxC2Er
+      PROXY_USERNAME: proxy_username
+      PROXY_PASSWORD: PVnkJazW2weJ6EcyZKgoZ7cNbckXVeGje4P
+    ports:
+      - 443:443
+    depends_on:
+      - redis
+      - minio
+# ------------------------------------------
+# --------- Web Service ! -----------------
+# ------------------------------------------
+  webdev:
+    image: webdev
+    build:
+        context: .
+        target: hermes-frontend-webdev
+    links:
+      - "proxy:proxy"
+      - "api:api"
+    ports:
+      - 80:80
+    depends_on:
+      - redis
+      - minio
+      - api
+      - proxy

@@ -1,0 +1,32 @@
+**/__pycache__/
+__pycache__/
+
+frontend/src/config.json
+frontend/.DS_Store
+frontend/node_modules
+frontend/dist
+frontend/src/DemoPagesExamples
+
+# local env files
+frontend/.env.local
+frontend/.env.*.local
+
+# Log files
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+backend/nohup.out
+backend/nohup_mitm.out
+
+# Editor directories and files
+frontend/.idea
+frontend/.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw*
+frontend/deploy.js
+
+# Extensions
+packages/flexssl/build

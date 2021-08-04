@@ -1,0 +1,5 @@
+{
+    "api_configs": {
+        "token_expiration_h": 24
+    }
+}
