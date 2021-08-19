@@ -1,5 +1,5 @@
 PyOpenSSL==19.1.0
-boto3==1.17.84
+boto3==1.18.24
 httpx[http2]
 flask==1.0.2
 flask_httpauth==3.2.4
