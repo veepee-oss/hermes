@@ -27,7 +27,7 @@
     "prismjs": "^1.23.0",
     "sass-loader": "^7.1.0",
     "vue": "2.6.10",
-    "vue-chartjs": "^3.4.2",
+    "vue-chartjs": "3.5.1",
     "vue-json-pretty": "^1.8.0",
     "vue-perfect-scrollbar": "^0.1.0",
     "vue-prism-editor": "^1.2.2",
