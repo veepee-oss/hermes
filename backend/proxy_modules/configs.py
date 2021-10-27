@@ -47,10 +47,10 @@ def extract_proxy_config(json_config):
     # ----------------------------------------------------
 
     # Check proxy node !
-    if not "proxy" in json_config: return None, None, {}
+    if not "proxy" in json_config: return None, None, None, {}
     proxy_node = json_config["proxy"]
 
-    if proxy_node is None: return None, None, {}
+    if proxy_node is None: return None, None, None, {}
 
     # Check mode
     try:
@@ -61,29 +61,32 @@ def extract_proxy_config(json_config):
 
     # We have a proxy !
     if js_mode is True:
-        if not "js_function" in proxy_node: return None, None, {"error": "js_mode active but no js_function !"}
-        if proxy_node['js_function'] is None: return None, None, {"error": "js_function is null !"}
+        if not "js_function" in proxy_node: return None, None, None, {"error": "js_mode active but no js_function !"}
+        if proxy_node['js_function'] is None: return None, None, None, {"error": "js_function is null !"}
 
         return proxy_modules.forgery.proxy_js_function(proxy_node['js_function'])
 
     else:
-        if (not "host" in proxy_node) or (not "port" in proxy_node): return None, None, {}
-        
+        if (not "host" in proxy_node) or (not "port" in proxy_node): return None, None, None,{}
         try:
             port_used = int(proxy_node['port'])
         except:
-            return None, None, {"error": "port is not an integer !"}
+            return None, None, None, {"error": "port is not an integer !"}
 
         proxy_res = (proxy_node['host'], port_used)
-
+        
+        if (not "type" in proxy_node): #HTTP by default not to break the existing config
+            type=None
+        else:
+            type=proxy_node["type"]
 
         if (not "username" in proxy_node) or (not "password" in proxy_node): 
-            return proxy_res, None, {}
+            return proxy_res, None, None, {}
         else:
             if ((proxy_node['username'] is None) and (proxy_node['username'] is None)):
-                return proxy_res, None, {}
+                return proxy_res, None, type, {}
             else:
-                return proxy_res, (proxy_node['username'], proxy_node['password']), {}
+                return proxy_res, (proxy_node['username'], proxy_node['password']),type, {}
 
 
 def fetch_site_match_redis(protocol_host_path):

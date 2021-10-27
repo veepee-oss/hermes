@@ -4,7 +4,7 @@ import copy
 import asyncio
 import ssl
 import h11
-
+import socks
 import uwsgi
 
 import proxy_modules.utils
@@ -13,9 +13,10 @@ import proxy_modules.transport
 import proxy_modules.forgery
 
 class EmulatedClient(object):
-    def __init__(self, proxy = None, proxy_auth = None, timeout=30):
+    def __init__(self, proxy = None, proxy_type = None, proxy_auth = None, timeout=30):
         self.proxy = proxy
         self.proxy_auth = proxy_auth
+        self.proxy_type = proxy_type
 
         socket.setdefaulttimeout(timeout)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,79 +30,110 @@ class EmulatedClient(object):
             self.sock.connect(address)
             return 200, {}
 
-        
-        # Will pass traffic to the Proxy !
+        if self.proxy_type in ["socks4", "socks5"]:
+            proxy_addr, proxy_port = self.proxy
+            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Connecting to SOCKS Proxy', "SUCCESS", data = {})
 
-        # Handle Proxy auth !
-        headers = copy.deepcopy(proxy_modules.utils.HTTPRequest(original_request).headers)
-        if not self.proxy_auth is None: headers['proxy-authorization'] = 'Basic ' + base64.b64encode(('%s:%s' % self.proxy_auth).encode('utf-8')).decode('utf-8')
+            if(self.proxy_type == "socks4"):
+                proxy_type = socks.SOCKS4
+            else:
+                proxy_type = socks.SOCKS5
 
-        # Connect to Proxy
-        self.sock.connect(self.proxy)
-        proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Connected to Proxy', "SUCCESS", data = {})
-        
-        try:
-            http_version = original_request.decode("utf-8").split('\r\n')[0].split('HTTP/')[1]
-        except:
-            http_version = "1.1"
+            try:
+                _hostname,_,ip_adresses = socket.gethostbyname_ex(address[0])
+                proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 DNS resolution done', "SUCCESS", data = {})
+            except:
+                 raise IOError('Step 2. ERROR : Cannot resolve domain name: ' + str(address[0]))
+
+            try:
+                self.sock = socks.create_connection(
+                        (ip_adresses[0], address[1]),
+                        proxy_type=proxy_type,
+                        proxy_addr=proxy_addr,
+                        proxy_port=proxy_port
+                    )
+                proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Connected to SOCKS Proxy', "SUCCESS", data = {})
+            except:
+                 raise IOError('Step 2. ERROR : Cannot connect to SOCKS proxy : ' + str(proxy_addr) +':'+str(proxy_port))
             
-        # Transmit data
-        fp = self.sock.makefile('w')
-        fp.write('CONNECT %s:%d HTTP/%s\r\n' % (address[0],address[1],http_version))
-        fp.write('\r\n'.join('%s: %s' % (k, v) for (k, v) in headers.items()) + '\r\n\r\n')
-        fp.flush()
+            return 200, {}
         
-        # Fetch the Proxy response !
-        fp = self.sock.makefile('r')
-        statusline = fp.readline().rstrip('\r\n')
+        else:
+            # Will pass traffic to the Proxy !
 
-        if statusline.count(' ') < 2:
-            fp.close()
-            self.sock.close()
+            # Handle Proxy auth !
+            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Connecting to HTTP Proxy', "SUCCESS", data = {})
+            
+            headers = copy.deepcopy(proxy_modules.utils.HTTPRequest(original_request).headers)
+            if not self.proxy_auth is None: headers['proxy-authorization'] = 'Basic ' + base64.b64encode(('%s:%s' % self.proxy_auth).encode('utf-8')).decode('utf-8')
+            
+            # Connect to Proxy
+            self.sock.connect(self.proxy)
+            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Connected to Proxy', "SUCCESS", data = {})
+
+
             try:
-                statusline_captured = str(statusline)
+                http_version = original_request.decode("utf-8").split('\r\n')[0].split('HTTP/')[1]
             except:
-                statusline_captured = 'MISSED'
-            raise IOError('Step 2. ERROR : target CONNECT through Proxy failed ! Status line: ' + statusline_captured)
+                http_version = "1.1"
+                
+            # Transmit data
+            fp = self.sock.makefile('w')
+            fp.write('CONNECT %s:%d HTTP/%s\r\n' % (address[0],address[1],http_version))
+            fp.write('\r\n'.join('%s: %s' % (k, v) for (k, v) in headers.items()) + '\r\n\r\n')
+            fp.flush()
+            
+            # Fetch the Proxy response !
+            fp = self.sock.makefile('r')
+            statusline = fp.readline().rstrip('\r\n')
 
-        proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Got a response from Target through proxy', "SUCCESS", data = {"response": statusline})
-        
-        version, status, statusmsg = statusline.split(' ', 2)
-        if not version in ('HTTP/1.0', 'HTTP/1.1'):
-            fp.close()
-            self.sock.close()
+            if statusline.count(' ') < 2:
+                fp.close()
+                self.sock.close()
+                try:
+                    statusline_captured = str(statusline)
+                except:
+                    statusline_captured = 'MISSED'
+                raise IOError('Step 2. ERROR : target CONNECT through Proxy failed ! Status line: ' + statusline_captured)
+
+            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2.0 Got a response from Target through proxy', "SUCCESS", data = {"response": statusline})
+            
+            version, status, statusmsg = statusline.split(' ', 2)
+            if not version in ('HTTP/1.0', 'HTTP/1.1'):
+                fp.close()
+                self.sock.close()
+                try:
+                    version_captured = str(version)
+                except:
+                    version_captured = 'MISSED'
+                raise IOError('Step 2. ERROR : Unsupported HTTP version ! Version: ' + version_captured)
+
             try:
-                version_captured = str(version)
-            except:
-                version_captured = 'MISSED'
-            raise IOError('Step 2. ERROR : Unsupported HTTP version ! Version: ' + version_captured)
+                status = int(status)
+            except ValueError:
+                fp.close()
+                self.sock.close()
+                try:
+                    status_captured = str(status)
+                except:
+                    status_captured = 'MISSED'
+                raise IOError('Step 2. ERROR : Bad response Status ! Status: ' + status_captured)
 
-        try:
-            status = int(status)
-        except ValueError:
+            response_headers = {}
+
+            while True:
+                tl = ''
+                l = fp.readline().rstrip('\r\n')
+                if l == '':
+                    break
+                if not ':' in l:
+                    continue
+                k, v = l.split(':', 1)
+                response_headers[k.strip().lower()] = v.strip()
+
             fp.close()
-            self.sock.close()
-            try:
-                status_captured = str(status)
-            except:
-                status_captured = 'MISSED'
-            raise IOError('Step 2. ERROR : Bad response Status ! Status: ' + status_captured)
-
-        response_headers = {}
-
-        while True:
-            tl = ''
-            l = fp.readline().rstrip('\r\n')
-            if l == '':
-                break
-            if not ':' in l:
-                continue
-            k, v = l.split(':', 1)
-            response_headers[k.strip().lower()] = v.strip()
-
-        fp.close()
-        
-        return (status, response_headers)
+            
+            return (status, response_headers)
 
     def sock_connect(self, data, ReqxRayTrackingID):
         path = proxy_modules.utils.HTTPRequest(data).headers["HOST"].split(":")

@@ -378,12 +378,13 @@ export default {
                             "host": "proxy.website.com",
                             "port": 8080,
                             "password": null,
-                            "username": null
+                            "username": null,
+                            "type":"http"
                         }, null, 4);
         },
 
         gen_example_js_proxy_code(){
-            this.code_config_proxy_advanced = "console.log(\n\tJSON.stringify(\n\t\t\t{\n\t\t\t\t'port': 8080,\n\t\t\t\t'host': 'proxy.website.com', \n\t\t\t\t'password': null, \n\t\t\t\t'user': null, \n\t\t\t\t'data': 'some data I want to pass ...'\n\t\t\t}\n\t\t)\n\t);";
+            this.code_config_proxy_advanced = "console.log(\n\tJSON.stringify(\n\t\t\t{\n\t\t\t\t'port': 8080,\n\t\t\t\t'host': 'proxy.website.com', \n\t\t\t\t'password': null, \n\t\t\t\t'user': null, \n\t\t\t\t'type': 'http', \n\t\t\t\t'data': 'some data I want to pass ...'\n\t\t\t}\n\t\t)\n\t);";
         },
 
         gen_example_site_bl_response(){
