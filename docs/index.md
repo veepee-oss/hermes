@@ -239,7 +239,8 @@ The simple proxy can be used by checking the box **use Simple mode** and by prov
     "host": "someproxy.provider.com",
     "password": "proxy-password-hasd-to-guess",
     "port": 8080,
-    "username": "my_username"
+    "username": "my_username",
+    "type":"http"
 }
 ```
 
@@ -250,7 +251,8 @@ for a no Authentification based proxy, you can use this config:
     "host": "someproxy.provider.com",
     "port": 8080,
     "username": null,
-    "password": null
+    "password": null,
+    "type":"socks4"
 }
 ```
 
@@ -272,6 +274,7 @@ console.log(
                 "password": "proxy-password-hasd-to-guess",
                 "port": 8080,
                 "username": "my_username",
+                "type":"socks5",
                 "data": "some index to track the selected proxy"
             }
         )
