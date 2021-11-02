@@ -117,15 +117,21 @@ def build_proxy_header_httpx(proxy, auth):
     if proxy is None: return None
     if auth is None:
         return {
-                'http://': 'http://' + proxy[0] +':' + str(proxy[1]), 
-                'https://': 'http://' + proxy[0] +':' + str(proxy[1]),
+                'http://': 'http://' + str(proxy[0]) +':' + str(proxy[1]),
+                'https://': 'http://' + str(proxy[0]) +':' + str(proxy[1]),
             }
     else:
         return {
-                'http://': 'http://' + auth[0]+':' + str(auth[1]) +'@' +proxy[0] +':' + str(proxy[1]), 
-                'https://': 'http://' + auth[0]+':' + str(auth[1]) +'@' +proxy[0] +':' + str(proxy[1]), 
+                'http://': 'http://' + auth[0]+':' + str(auth[1]) +'@' +str(proxy[0]) +':' + str(proxy[1]),
+                'https://': 'http://' + auth[0]+':' + str(auth[1]) +'@' +str(proxy[0]) +':' + str(proxy[1]),
             }
 
+def build_socks_conn_httpx(proxy, auth, type):
+    if proxy is None: return None
+    if auth is None:
+        return str(type)+'://' + str(proxy[0]) +':' + str(proxy[1])
+    else:
+        return str(type)+'://' + str(auth[0])+':' + str(auth[1]) +'@' +str(proxy[0]) +':' + str(proxy[1])
 
 def explode_request(input_request):
     if input_request is None: return None

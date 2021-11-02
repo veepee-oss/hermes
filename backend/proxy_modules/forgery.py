@@ -253,6 +253,12 @@ def proxy_js_function(js_function_code):
         else:
             proxy_port = int(end_res['port'])
 
+        if (not "type" in end_res): #HTTP by default not to break the existing config
+            type=None
+        else:
+            type=end_res["type"]
+
+
         proxy_user = end_res['user']
         proxy_password = end_res['password']
         
@@ -269,17 +275,17 @@ def proxy_js_function(js_function_code):
     _delete_pass_file(file_tmp_to_run)
 
     # Return
-    if end_res is None: return None, None, json_messages_js_run
+    if end_res is None: return None, None, None,json_messages_js_run
 
     if proxy_host is None:
         json_messages_js_run['note'] = 'host is set to null'
-        return None, None, json_messages_js_run  
+        return None, None, None, json_messages_js_run  
     else:
         if (proxy_user is None) and (proxy_password is None): 
             json_messages_js_run['note'] = 'no authentication needed'
-            return (proxy_host, proxy_port), None, json_messages_js_run
+            return (proxy_host, proxy_port), None, type,json_messages_js_run
         else:
-            return (proxy_host, proxy_port), (proxy_user, proxy_password), json_messages_js_run
+            return (proxy_host, proxy_port), (proxy_user, proxy_password), type,json_messages_js_run
 
 
 def run_js_function_io(reply, proxy_verbose_messages, js_function_to_run, return_type = 'BINARY'):

@@ -1,5 +1,7 @@
 import asyncio
 import httpx
+from httpx_socks import SyncProxyTransport
+
 import ssl
 import time
 import datetime
@@ -112,8 +114,8 @@ class HTTP(asyncio.Protocol):
             # ------------------------------------------------
             # -------- PART 1.2 : PROXY CONFIG !
             # ------------------------------------------------
-            config_proxy_node, config_proxy_auth_node, proxy_verbose_messages = proxy_modules.configs.extract_proxy_config(json_config)
-            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 1.2. Extracted proxy params.', "INFO", data = {"config_proxy_node": config_proxy_node, "config_proxy_auth_node" : "hidden", "log": proxy_verbose_messages})
+            config_proxy_node, config_proxy_auth_node, config_proxy_type_node, proxy_verbose_messages = proxy_modules.configs.extract_proxy_config(json_config)
+            proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 1.2. Extracted proxy params.', "INFO", data = {"config_proxy_node": config_proxy_node, "config_proxy_auth_node" : "hidden", "log": proxy_verbose_messages,"config_proxy_type_node":config_proxy_type_node})
 
             # ------------------------------------------------
             # -------- PART 1.25 : Headers Freeze
@@ -167,7 +169,7 @@ class HTTP(asyncio.Protocol):
                 proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2. Running HTTP1.x request, connecting socket ...', "INFO", data = {"data": xPlodedReq, "connect_req": xPlodedConnectReq})
 
                 # Creates emulated client.
-                emulated_client = proxy_modules.backbone.EmulatedClient(proxy = config_proxy_node, proxy_auth = config_proxy_auth_node)
+                emulated_client = proxy_modules.backbone.EmulatedClient(proxy = config_proxy_node, proxy_auth = config_proxy_auth_node, proxy_type=config_proxy_type_node)
                 
                 time_marker = time.time()
 
@@ -187,13 +189,12 @@ class HTTP(asyncio.Protocol):
                 # Receives the reply and responds back to client.
                 proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2. Data sent, receiving data ...', "INFO", data = {})
                 reply = emulated_client.sock_receive()
-
                 # Done internet request !
                 internet_req_duration_sec += time.time() - time_marker
             else:
                 requested_protocol = 'http2'
                 proxy_modules.logging.log_xray(ReqxRayTrackingID, 'Step 2. Running HTTP2.0 request ...', "INFO", data = {})
-                HTTP2_req_obj = HTTP2(http2_req, ssl_context_used, config_proxy_node, config_proxy_auth_node)
+                HTTP2_req_obj = HTTP2(http2_req, ssl_context_used, config_proxy_node, config_proxy_auth_node,config_proxy_type_node)
                 
                 # Perform the HTTP 2 request!
                 time_marker = time.time()
@@ -206,7 +207,7 @@ class HTTP(asyncio.Protocol):
             # -------- PART 3 : Handle response 
             # ------------------------------------------------ 
             if site_hit is True:
-                bl_input_node_code_proxy = {"host": config_proxy_node, "auth": config_proxy_auth_node, "log": proxy_verbose_messages}
+                bl_input_node_code_proxy = {"host": config_proxy_node, "auth": config_proxy_auth_node, "log": proxy_verbose_messages,"type":config_proxy_type_node}
                 am_i_blacklisted, json_verbose_msg = proxy_modules.forgery.run_js_function_io(reply, bl_input_node_code_proxy , site_bl_func, return_type = 'BINARY')
                 
                 proxy_modules.logging.bl_request_count(config_id, site_hex, 1 if am_i_blacklisted is False else 0, reply)
@@ -279,24 +280,35 @@ class HTTPS:
 
 
 class HTTP2(object):
-    def __init__(self, http2_req, ssl_context_used, config_proxy_node, config_proxy_auth_node):
+    def __init__(self, http2_req, ssl_context_used, config_proxy_node, config_proxy_auth_node,config_proxy_type_node):
         self.http2_req = http2_req
         self.ssl_context_used = ssl_context_used
         self.config_proxy_node = config_proxy_node
         self.config_proxy_auth_node = config_proxy_auth_node
+        self.config_proxy_type_node = config_proxy_type_node
 
 
     def fetch_ressource(self):
         # Make a HTTP2 request to the Target
-        co2 = httpx.Client( base_url= self.http2_req['host_connect'], 
+        if(self.config_proxy_type_node in ["socks4","socks5"]):
+            transport = SyncProxyTransport.from_url(proxy_modules.utils.build_socks_conn_httpx(self.config_proxy_node, self.config_proxy_auth_node,self.config_proxy_type_node))
+            co2 = httpx.Client( base_url= self.http2_req['host_connect'], 
+                                    headers = self.http2_req['headers'], 
+                                    transport = transport, 
+                                    http2 = True, 
+                                    verify = self.ssl_context_used, 
+                                    timeout = 60)
+        else:
+            co2 = httpx.Client( base_url= self.http2_req['host_connect'], 
                                     headers = self.http2_req['headers'], 
                                     proxies = proxy_modules.utils.build_proxy_header_httpx(self.config_proxy_node, self.config_proxy_auth_node), 
                                     http2 = True, 
                                     verify = self.ssl_context_used, 
                                     timeout = 60)
+        
 
-        request = co2.build_request(self.http2_req['command'], 
-                                    self.http2_req['path'], 
+        request = co2.build_request(self.http2_req['command'],
+                                    self.http2_req['path'],
                                     data = self.http2_req['data'])
 
         __http_response = co2.send(request)
