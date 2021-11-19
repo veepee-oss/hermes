@@ -59,6 +59,23 @@ Hermes creates a self-signed certificate to channel HTTPS and HTTP/2 requests.
 
 You should use the **--insecure** flag for each of your requests or configure your Internet browser to bypass this restriction.
 
+But, you can **force Hermes to use your own certificate**, you should then place the cert and key files in these locations:
+
+
+    /etc/ssl/private/mitm.crt
+    /etc/ssl/private/mitm.key
+
+Then add this certificate to your list of **approved certificates** by the OS.
+
+### Add a self-signed certificate to ubuntu:
+
+Copy your certificate in **PEM** format (the format that has ----BEGIN CERTIFICATE---- in it) into 
+
+    /usr/local/share/ca-certificates 
+and name it with a .crt file extension. Then, run this command:
+
+
+    $: sudo update-ca-certificates
 
 ## Authentification
 
