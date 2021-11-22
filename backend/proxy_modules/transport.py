@@ -3,6 +3,7 @@ import httpx
 from httpx_socks import SyncProxyTransport
 
 import ssl
+import gzip
 import time
 import datetime
 import re
@@ -319,6 +320,13 @@ class HTTP2(object):
         __code = __http_response.status_code
         __message =__http_response.reason_phrase
 
+        # Check GZIP compression
+        for k in list(__response_headers.keys()):
+            if k.lower() == 'content-encoding':
+                if 'gzip' in __response_headers[k].lower():
+                    __response_data = gzip.compress(__response_data)
+                    
+        # Compose
         final_response = 'HTTP/1.1 ' + str(__code)  + ' ' + __message + '\r\n'
         final_response = final_response + '\r\n'.join('%s: %s' % (k, v) for (k, v) in __response_headers.items()) + '\r\n\r\n'
         final_response = final_response.encode('utf-8')
