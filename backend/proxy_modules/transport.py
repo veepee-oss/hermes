@@ -61,8 +61,6 @@ class HTTP(asyncio.Protocol):
                 self.transport.write(b"HTTP/1.1 401 Unauthorized\r\n\r\n")
                 self.close()
                 return
-
-
             # ------------------------------------------------
             # -------- PART 1.1 : Connect / request cleaning
             # ------------------------------------------------ 
@@ -203,7 +201,6 @@ class HTTP(asyncio.Protocol):
 
                 # Done internet request !
                 internet_req_duration_sec += time.time() - time_marker
-            
             # ------------------------------------------------
             # -------- PART 3 : Handle response 
             # ------------------------------------------------ 
@@ -373,12 +370,15 @@ class Interceptor(asyncio.Protocol):
     async def data_received(self, data):
         # Parses the data the client has sent to the server.
         request = proxy_modules.utils.HTTPRequest(data)
-
         # Decides where to send data to (HTTP or HTTPS protocol).
         if request.command == "CONNECT" and self.using_tls == False:
-            
-            # Replies to the client that the server has connected.
-            self.transport.write(b"HTTP/1.1 200 OK\r\n\r\n")
+            # Ask for Auth
+            if request.get_header_val('Proxy-Authorization') is None:
+                self.transport.write(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n")
+                self.transport.close()
+                return
+            else:
+                self.transport.write(b"HTTP/1.1 200 OK\r\n\r\n")
 
             # Does a TLS/SSL handshake with the client.
             self.HTTPS.connection_made(self.transport)
@@ -396,8 +396,13 @@ class Interceptor(asyncio.Protocol):
 
         else:
             # Receives standard, non-encrypted data from the client (TLS/SSL is off).
+
+            # Ask for Auth
+            if request.get_header_val('Proxy-Authorization') is None:
+                self.transport.write(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n")
+                self.transport.close()
+                return 
             self.HTTP.connection_made(self.transport)
-            #self.HTTP.data_received(data)
 
             thread_processor = http_processor(self.HTTP, data)
             thread_processor.start()
