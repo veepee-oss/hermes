@@ -195,8 +195,9 @@ class EmulatedClient(object):
 
     def get_content_length(self, header):
         for line in header.split(b'\r\n'):
-            if b'Content-Length:'.lower() in line.lower():
-                return int(line[len(b'Content-Length:'):])
+            line_formated =  line.lower().split(b':')
+            if b'Content-Length:'.lower() == line_formated[0].lower():
+                return int(str(line_formated[1]))
         return 0
 
     def sock_receive(self):
