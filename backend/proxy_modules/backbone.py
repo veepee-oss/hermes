@@ -6,6 +6,7 @@ import ssl
 import h11
 import socks
 import uwsgi
+import re
 
 import proxy_modules.utils
 import proxy_modules.logging
@@ -194,10 +195,10 @@ class EmulatedClient(object):
         return self.content_length <= length
 
     def get_content_length(self, header):
-        for line in header.split(b'\r\n'):
-            line_formated =  line.lower().split(b':')
-            if b'Content-Length:'.lower() == line_formated[0].lower():
-                return int(str(line_formated[1]))
+        for line in header.decode('ascii').split('\r\n'):
+            line_formated =  line.lower().split(':')
+            if 'Content-Length'.lower() == re.sub(r"\s+", "", line_formated[0]):
+                return int(re.sub(r"\s+","",line_formated[1]))
         return 0
 
     def sock_receive(self):
