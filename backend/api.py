@@ -16,6 +16,7 @@ import api_modules.summary
 import api_modules.gzip
 import api_modules.test
 import api_modules.sites
+import api_modules.certificates
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -40,6 +41,16 @@ def gzipped(f):
 		return f(*args, **kwargs)
 	return view_func
 
+# -------------- Certificate Authority ---------------
+@app.route('/certificate/public', methods=['GET'])
+@auth.login_required
+@gzipped
+def api_get_public_certificate(): return api_modules.certificates.get_public_certificate()
+
+@app.route('/certificate/private', methods=['GET'])
+@auth.login_required
+@gzipped
+def api_get_private_certificate(): return api_modules.certificates.get_private_certificate()
 
 # ----------------- Authentification -----------------
 @auth.verify_password
