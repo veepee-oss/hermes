@@ -20,6 +20,7 @@ import proxy_modules.logging
 import proxy_modules.configs
 import proxy_modules.forgery
 
+
 class HTTP(asyncio.Protocol):
     def __init__(self):
         super().__init__()
@@ -349,13 +350,16 @@ class http_processor(Thread):
             raise(e)
 
 class Interceptor(asyncio.Protocol):
-    def __init__(self, ssl_context):
-        # Initiating our HTTP/HTTPS protocols.
+    def __init__(self, ca_public_key, ca_private_key):
+        # Initiating our HTTP protocol.
         self.HTTP = HTTP()
-        self.HTTPS = HTTPS(ssl_context)
-
+        # Initiating our CA certs.
+        self.ca_public_key = ca_public_key
+        self.ca_private_key = ca_private_key
         # Creates the TLS flag. Will be used later.
         self.using_tls = False
+        # Creates the hello flag. Will be used later
+        self.hello_done = False
 
     def connection_made(self, transport):
         # Setting our transport object.
@@ -380,19 +384,28 @@ class Interceptor(asyncio.Protocol):
             else:
                 self.transport.write(b"HTTP/1.1 200 OK\r\n\r\n")
 
-            # Does a TLS/SSL handshake with the client.
-            self.HTTPS.connection_made(self.transport)
-
             # Sets our TLS flag to true.
             self.using_tls = True
 
-            # Sends the CONNECT to the HTTPS protocol for storage and print.
-            # Since this is the initial 'CONNECT' data, it will be unencrypted.
-            self.HTTPS._app_protocol.connect_statement = data
-
         elif self.using_tls:
+            if not self.hello_done:
+                #Parse the TLS Hello to extract host for certificate generation
+                tls_hello = proxy_modules.utils.parse_tls_hello(bytes(data))
+                host=proxy_modules.utils.get_tls_hostname(tls_hello)
+                #Generate Website certificate
+                rsa_key = proxy_modules.utils.RSA( ca_public_key=self.ca_public_key, ca_private_key=self.ca_private_key, host=host.decode())
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+                ssl_context.load_cert_chain(rsa_key.certificate_file, rsa_key.private_key_file)
+                self.HTTPS = HTTPS(ssl_context)
+                # Does a TLS/SSL handshake with the client.
+                self.HTTPS.connection_made(self.transport)
+                # Sends the CONNECT to the HTTPS protocol for storage and print.
+                # Since this is the initial 'CONNECT' data, it will be unencrypted.
+                self.HTTPS._app_protocol.connect_statement = self.connect_request
+                self.hello_done = True
+            else:
             # With HTTPS protocol enabled, receives encrypted data from the client.
-            self.HTTPS.data_received(data)
+                self.HTTPS.data_received(data)
 
         else:
             # Receives standard, non-encrypted data from the client (TLS/SSL is off).

@@ -237,12 +237,13 @@ class EmulatedClient(object):
         """       
 
 class ManInTheMiddle(object):
-    def __init__(self, ssl_context):
-        self.ssl_context = ssl_context
+    def __init__(self, ca_public_key, ca_private_key):
+        self.ca_public_key = ca_public_key
+        self.ca_private_key = ca_private_key
         return
 
     async def handle_one_sock_request(self, reader, writer):
-        protocol = proxy_modules.transport.Interceptor(self.ssl_context)
+        protocol = proxy_modules.transport.Interceptor(self.ca_public_key,self.ca_private_key)
         protocol.connection_made(writer.transport)
         my_co = h11.Connection(h11.SERVER) #HTTP parser
         buffer_data = b''

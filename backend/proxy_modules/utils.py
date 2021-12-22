@@ -2,10 +2,22 @@ import os
 import copy
 import base64
 
+import struct
+
 from http.server import BaseHTTPRequestHandler
-from OpenSSL import crypto
+
+import datetime
+
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+
 from io import BytesIO
-from socket import gethostname
 
 import utils.config_handler
 
@@ -28,49 +40,96 @@ class HTTPRequest(BaseHTTPRequestHandler):
 
 
 class RSA:
-    def __init__(self, dir=None):
-        # Pubkey
-        self.private_key_obj = crypto.PKey()
-        self.private_key_obj.generate_key(crypto.TYPE_RSA, 2048)
+    def __init__(self, ca_public_key, ca_private_key, host="127.0.0.1" ,dir="/tmp/mitm/"):
+        start_time = datetime.datetime.now()
+        #Load CA
+        self.root_key = ca_private_key
+        self.root_cert = ca_public_key
+        self.host = host
+        self.dir = dir
+        self.certificate_file = dir + "/"+host+".crt"
+        self.private_key_file = dir + "/"+host+".key"
 
-        # Certificate info.
-        self.certificate_obj = crypto.X509()
-        self.certificate_obj.get_subject().C = "FR"
-        self.certificate_obj.get_subject().ST = "Paris"
-        self.certificate_obj.get_subject().L = "Paris"
-        self.certificate_obj.get_subject().O = "Hermes"
-        self.certificate_obj.get_subject().OU = "Hermes"
-        self.certificate_obj.get_subject().CN = gethostname()
-        self.certificate_obj.set_serial_number(1000)
-        self.certificate_obj.gmtime_adj_notBefore(0)
-        self.certificate_obj.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
+        if not self.is_certificate_exist():
+            self.create_certificate()
+        total_time = datetime.datetime.now() - start_time
+        print('=======> ',total_time.total_seconds())
 
-        # Setting certificate/privkey.
-        self.certificate_obj.set_issuer(self.certificate_obj.get_subject())
-        self.certificate_obj.set_pubkey(self.private_key_obj)
-        self.certificate_obj.sign(self.private_key_obj, "sha1")
+
+    def is_certificate_exist(self):
+        cert = self.load_certificate()
+        key = self.load_key()
+        now = datetime.datetime.now()
+        if(cert and key):
+            if(cert.not_valid_before<now and  now<cert.not_valid_after):
+                return True
+            return False
+        return False
+
+    def create_certificate(self):
+        #Create Certificate
+        self.private_key_obj = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        self.new_subject = x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, u"FR"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, self.host)#HostName
+        ])
+        self.cert = x509.CertificateBuilder().subject_name(
+            self.new_subject
+        ).issuer_name(
+            self.root_cert.issuer
+        ).public_key(
+             self.private_key_obj.public_key()
+        ).serial_number(
+            x509.random_serial_number()
+        ).not_valid_before(
+            datetime.datetime.utcnow() - datetime.timedelta(days=30)
+        ).not_valid_after(
+        datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        ).add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(self.host)]),#HostName
+            critical=False,
+        ).sign(self.root_key, hashes.SHA256(), default_backend())
+        #######################
 
         # .crt and .key file dump.
-        cert = crypto.dump_certificate(crypto.FILETYPE_PEM, self.certificate_obj)
-        privkey = crypto.dump_privatekey(crypto.FILETYPE_PEM, self.private_key_obj)
+        cert = self.cert.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                )
+        privkey = self.private_key_obj.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
 
         # Saves to "memory file."
         self.certificate = BytesIO(cert)
         self.private_key = BytesIO(privkey)
 
         # If dir is not passed, saves the certificate in /tmp/.
-        if dir:
-            self.save(dir)
-        else:
-            self.save("/tmp/mitm/")
+        self.save(self.dir,self.host)
 
-    def save(self, dir):
+    def load_key(self):
+        if not os.path.isfile(self.certificate_file):
+            return None
+        with open(self.private_key_file, 'rb') as pem_in:
+            pemlines = pem_in.read()
+            private_key = load_pem_private_key(pemlines, None, default_backend())
+            return private_key
+
+    def load_certificate(self):
+        if not os.path.isfile(self.certificate_file):
+            return None
+        with open(self.certificate_file, "rb") as f:
+            return x509.load_pem_x509_certificate(f.read(), default_backend())
+
+    def save(self, dir, file_name):
 
         if not os.path.exists(dir):
             os.makedirs(dir)
-
-        self.certificate_file = dir + "/mitm.crt"
-        self.private_key_file = dir + "/mitm.key"
 
         with open(self.certificate_file, "wb") as f:
             f.write(self.certificate.getbuffer())
@@ -363,3 +422,110 @@ def check_key_exists_non_null(input_dict, key_to_check):
                 return True
     else:
         return False
+
+import struct
+
+def parse_tls_hello(payload):
+    if not payload:
+        return
+    if payload==b'':
+        return
+    result = {}
+    
+    #record Header
+    record_header = {}
+    record_header["handshare_record"],record_header["protocol_version"],record_header["length"]= struct.unpack('s 2s 2s' ,payload[0:5])
+    result["record_header"] = record_header
+    
+    #Handshake Header
+    handshake_header = {}
+    handshake_header["message_type"],handshake_header["message_bytes"]= struct.unpack('s 3s' ,payload[5:9])
+    result["handshake_header"] = handshake_header
+    
+    if(int.from_bytes(handshake_header["message_type"],"big")!=0x01):
+        return
+    
+    #Client Version
+    result["client_version"] = payload[9:11]
+    
+    #Client Random Data
+    result["random_data"] = payload[11:43]
+    
+    #Client Session id
+    try:
+        result["session_id_length"] = payload[43]
+    except:
+        print(payload)
+    first_byte = 44
+    last_byte = 44+ result["session_id_length"]
+    result["session_id"]= payload[first_byte:last_byte]
+    
+    #Cipher Suites
+    cypher_suites = {}
+    first_byte = last_byte
+    last_byte += 2
+    cypher_suites["length"] = payload[first_byte:last_byte]
+    
+    ##From this moment the bits are no longer fixed
+    first_byte = last_byte
+    last_byte += int.from_bytes(cypher_suites["length"],"big")
+    
+    cypher_suites["elements"] = payload[first_byte:last_byte]
+    result["cypher_suites"] = cypher_suites
+    
+    #Compression methods 
+    first_byte = last_byte
+    last_byte += 1
+    
+    compression_methods = {}
+    compression_methods["length"] = payload[first_byte:last_byte]
+    
+    first_byte = last_byte
+    last_byte += int.from_bytes(compression_methods["length"],"big")
+    compression_methods["methods"] = payload[first_byte:last_byte]
+    result["compression_methods"] = compression_methods
+    
+    #Extensions
+    first_byte = last_byte
+    last_byte += 2
+    extenssions = {}
+    extenssions["length"] = payload[first_byte:last_byte]
+    extenssions["list"]=[]
+    count = 0
+    while int.from_bytes(extenssions["length"],"big")>count:
+        extension = {}
+        first_byte = last_byte
+        last_byte += 4
+        count += 4
+        
+        extension["type"], extension["length"] = struct.unpack('2s 2s' ,payload[first_byte:last_byte])
+        
+        first_byte = last_byte
+        last_byte += int.from_bytes(extension["length"],"big")
+        count += int.from_bytes(extension["length"],"big")
+        extension["data"]=payload[first_byte:last_byte]
+        
+        extenssions["list"].append(extension)
+    
+    result["extenssions"] = extenssions
+
+    return result
+
+def get_tls_hostname(parsed_hello):
+    if(int.from_bytes(parsed_hello["handshake_header"]["message_type"],"big")!=0x01):
+        return ""
+    for extenssion in parsed_hello["extenssions"]["list"]:
+        if(int.from_bytes(extenssion["type"],"big")==0x0000):
+            first_byte = 0
+            last_byte = 2
+            length = extenssion["data"][first_byte:last_byte]
+            first_byte = last_byte
+            last_byte += 1
+            entry_type = extenssion["data"][first_byte:last_byte]
+            first_byte = last_byte
+            last_byte += 2
+            host_length = extenssion["data"][first_byte:last_byte]
+            first_byte = last_byte
+            last_byte += int.from_bytes(host_length,"big")
+            host_name = extenssion["data"][first_byte:last_byte]
+            return host_name
