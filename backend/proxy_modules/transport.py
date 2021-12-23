@@ -384,6 +384,7 @@ class Interceptor(asyncio.Protocol):
             else:
                 self.transport.write(b"HTTP/1.1 200 OK\r\n\r\n")
 
+            self.connect_request = data
             # Sets our TLS flag to true.
             self.using_tls = True
 
@@ -403,7 +404,8 @@ class Interceptor(asyncio.Protocol):
                 # Since this is the initial 'CONNECT' data, it will be unencrypted.
                 self.HTTPS._app_protocol.connect_statement = self.connect_request
                 self.hello_done = True
-            else:
+                
+            if self.hello_done:
             # With HTTPS protocol enabled, receives encrypted data from the client.
                 self.HTTPS.data_received(data)
 

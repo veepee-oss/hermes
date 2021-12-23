@@ -41,7 +41,6 @@ class HTTPRequest(BaseHTTPRequestHandler):
 
 class RSA:
     def __init__(self, ca_public_key, ca_private_key, host="127.0.0.1" ,dir="/tmp/mitm/"):
-        start_time = datetime.datetime.now()
         #Load CA
         self.root_key = ca_private_key
         self.root_cert = ca_public_key
@@ -52,9 +51,6 @@ class RSA:
 
         if not self.is_certificate_exist():
             self.create_certificate()
-        total_time = datetime.datetime.now() - start_time
-        print('=======> ',total_time.total_seconds())
-
 
     def is_certificate_exist(self):
         cert = self.load_certificate()
