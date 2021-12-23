@@ -45,7 +45,7 @@ RUN chmod 644 /usr/lib/uwsgi/plugins/python38_plugin.so
 # ---- Service
 EXPOSE 8080
 WORKDIR /app/hermes/backend
-CMD ["uwsgi","--ini","deploy.ini"]
+CMD ["./start_mitm.sh"]
 
 
 # --------------------------------------
