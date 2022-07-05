@@ -18,7 +18,7 @@
     "bootstrap-vue": "^2.0.0-rc.18",
     "chart.js": "^2.8.0",
     "es6-promise": "^4.2.6",
-    "ftp-deploy": "^2.3.5",
+    "ftp-deploy": "2.4.3",
     "increase-memory-limit": "^1.0.6",
     "node-sass": "^4.11.0",
     "pe7-icon": "^1.0.4",
