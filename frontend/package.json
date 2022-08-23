@@ -24,7 +24,7 @@
     "pe7-icon": "^1.0.4",
     "perfect-scrollbar": "^1.4.0",
     "popper.js": "^1.15.0",
-    "prismjs": "^1.23.0",
+    "prismjs": "1.29.0",
     "sass-loader": "^7.1.0",
     "vue": "2.6.10",
     "vue-chartjs": "^3.4.2",
