@@ -5,7 +5,7 @@ httpx-socks[asyncio]
 flask==1.1.4
 flask_httpauth==3.2.4
 flask_cors==3.0.10
-flask-compress==1.9.0
+flask-compress==1.13
 py-mini-racer==0.6.0
 pymongo==3.11.4
 redis==3.5.3
