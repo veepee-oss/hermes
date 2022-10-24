@@ -9,5 +9,5 @@ flask-compress==1.9.0
 py-mini-racer==0.6.0
 pymongo==3.11.4
 redis==3.5.3
-requests==2.25.1
+requests==2.28.1
 PySocks==1.7.1
