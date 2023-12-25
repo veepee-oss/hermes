@@ -26,7 +26,7 @@
     "popper.js": "^1.15.0",
     "prismjs": "^1.23.0",
     "sass-loader": "^7.1.0",
-    "vue": "2.6.10",
+    "vue": "2.7.16",
     "vue-chartjs": "^3.4.2",
     "vue-json-pretty": "^1.8.0",
     "vue-perfect-scrollbar": "^0.1.0",
@@ -46,7 +46,7 @@
     "eslint-plugin-vue": "^5.2.2",
     "stylus": "^0.54.5",
     "stylus-loader": "^3.0.1",
-    "vue-template-compiler": "2.6.10"
+    "vue-template-compiler": "2.7.16"
   },
   "eslintConfig": {
     "root": true,
