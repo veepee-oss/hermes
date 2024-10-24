@@ -1,5 +1,5 @@
 PyOpenSSL==19.1.0
-boto3==1.18.24
+boto3==1.35.48
 httpx[http2]
 httpx-socks[asyncio]
 flask==1.1.4
